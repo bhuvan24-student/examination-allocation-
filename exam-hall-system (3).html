@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ExamSeat Pro — Hall Allocation System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0f19;--s1:#111827;--s2:#151e2d;--s3:#1a2540;
+  --br:#1e2d42;--br2:#253550;--tx:#e8edf5;--tx2:#7a8faa;--tx3:#3d5068;
+  --blue:#3b82f6;--blue-d:#1d4ed8;--blue-s:rgba(59,130,246,.12);
+  --teal:#06b6d4;--green:#10b981;--green-s:rgba(16,185,129,.12);
+  --amber:#f59e0b;--amber-s:rgba(245,158,11,.12);
+  --red:#ef4444;--red-s:rgba(239,68,68,.12);--purple:#8b5cf6;
+  --r:12px;--rsm:8px;--font:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;
+  --sidebar:240px;--topbar:60px;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--tx);min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--s1)}
+::-webkit-scrollbar-thumb{background:var(--br2);border-radius:99px}
+
+/* TOPBAR */
+.topbar{height:var(--topbar);background:var(--s1);border-bottom:1px solid var(--br);
+  display:flex;align-items:center;padding:0 20px;gap:16px;
+  position:fixed;top:0;left:0;right:0;z-index:200}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:var(--tx);text-decoration:none}
+.brand-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--blue),var(--teal));
+  border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;
+  box-shadow:0 0 16px rgba(59,130,246,.4)}
+.brand-sub{font-size:10px;font-weight:500;color:var(--tx2);letter-spacing:.5px;display:block}
+.topbar-stats{flex:1;display:flex;align-items:center;justify-content:center;gap:28px}
+.ts-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--tx2)}
+.ts-item strong{color:var(--tx);font-weight:700;font-family:var(--mono);font-size:13px}
+.ts-dot{width:7px;height:7px;border-radius:50%;background:var(--tx3)}
+.ts-dot.on{background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* SIDEBAR */
+.sidebar{width:var(--sidebar);background:var(--s1);border-right:1px solid var(--br);
+  position:fixed;top:var(--topbar);bottom:0;left:0;z-index:100;
+  display:flex;flex-direction:column;padding:16px 10px;overflow-y:auto}
+.sb-section{margin-bottom:22px}
+.sb-label{font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--tx3);
+  text-transform:uppercase;padding:0 8px;margin-bottom:6px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:var(--rsm);
+  color:var(--tx2);font-size:13px;font-weight:500;cursor:pointer;border:none;
+  background:none;width:100%;text-align:left;transition:all .15s;font-family:var(--font);position:relative}
+.nav-item:hover{background:var(--s2);color:var(--tx)}
+.nav-item.active{background:var(--blue-s);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.nav-item.active::before{content:'';position:absolute;left:0;top:25%;bottom:25%;width:3px;border-radius:99px;background:var(--blue)}
+.ni-icon{font-size:15px;width:18px;flex-shrink:0}
+.ni-badge{margin-left:auto;padding:1px 6px;border-radius:99px;font-size:10px;font-weight:700;font-family:var(--mono)}
+.ni-badge.b-blue{background:var(--blue-s);color:var(--blue)}
+.ni-badge.b-green{background:var(--green-s);color:var(--green)}
+.ni-badge.b-red{background:var(--red-s);color:var(--red)}
+.ni-badge.b-amber{background:var(--amber-s);color:var(--amber)}
+.sb-footer{margin-top:auto;padding:12px 8px;border-top:1px solid var(--br);font-size:11px;color:var(--tx3);line-height:1.7}
+
+/* MAIN */
+.main{margin-left:var(--sidebar);margin-top:var(--topbar);flex:1}
+.page{display:none;padding:28px 30px;animation:fadeIn .2s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.page-hdr{margin-bottom:26px}
+.page-hdr h1{font-size:22px;font-weight:800;color:var(--tx);letter-spacing:-.3px;margin-bottom:4px}
+.page-hdr p{font-size:13px;color:var(--tx2)}
+.page-hdr-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+/* CARDS */
+.card{background:var(--s1);border:1px solid var(--br);border-radius:var(--r);padding:22px;margin-bottom:18px}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.card-title{font-size:14px;font-weight:700;color:var(--tx);display:flex;align-items:center;gap:8px}
+.ct-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px}
+
+/* STAT CARDS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px}
+.sc{background:var(--s1);border:1px solid var(--br);border-radius:var(--r);padding:18px 20px;position:relative;overflow:hidden;transition:border-color .2s}
+.sc:hover{border-color:var(--br2)}
+.sc::after{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.sc.c-blue::after{background:linear-gradient(90deg,var(--blue),var(--teal))}
+.sc.c-green::after{background:linear-gradient(90deg,var(--green),#06d6a0)}
+.sc.c-amber::after{background:linear-gradient(90deg,var(--amber),#f97316)}
+.sc.c-red::after{background:linear-gradient(90deg,var(--red),#f97316)}
+.sc.c-purple::after{background:linear-gradient(90deg,var(--purple),var(--blue))}
+.sc-label{font-size:10px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.sc-val{font-size:30px;font-weight:800;line-height:1;margin-bottom:4px;font-family:var(--mono)}
+.sc-val.c-blue{color:var(--blue)}.sc-val.c-green{color:var(--green)}
+.sc-val.c-amber{color:var(--amber)}.sc-val.c-red{color:var(--red)}.sc-val.c-purple{color:var(--purple)}
+.sc-sub{font-size:11px;color:var(--tx3)}
+.sc-icon{position:absolute;top:14px;right:14px;font-size:24px;opacity:.1}
+.prog-bar{background:var(--br);border-radius:99px;height:5px;overflow:hidden;margin-top:8px}
+.prog-fill{height:100%;border-radius:99px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+
+/* GRID HELPERS */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media(max-width:1024px){.two-col{grid-template-columns:1fr}}
+@media(max-width:800px){.three-col{grid-template-columns:1fr 1fr}}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:var(--rsm);
+  font-size:13px;font-weight:600;cursor:pointer;border:1px solid transparent;
+  font-family:var(--font);transition:all .15s;white-space:nowrap;line-height:1}
+.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 0 20px rgba(59,130,246,.3)}
+.btn-primary:hover{background:var(--blue-d);box-shadow:0 0 28px rgba(59,130,246,.45)}
+.btn-success{background:var(--green);color:#fff;border-color:var(--green);box-shadow:0 0 16px rgba(16,185,129,.25)}
+.btn-success:hover{background:#059669}
+.btn-ghost{background:var(--s2);color:var(--tx2);border-color:var(--br)}
+.btn-ghost:hover{background:var(--s3);color:var(--tx);border-color:var(--br2)}
+.btn-danger{background:var(--red-s);color:var(--red);border-color:rgba(239,68,68,.25)}
+.btn-danger:hover{background:rgba(239,68,68,.2)}
+.btn-amber{background:var(--amber-s);color:var(--amber);border-color:rgba(245,158,11,.25)}
+.btn-amber:hover{background:rgba(245,158,11,.2)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-lg{padding:11px 26px;font-size:15px;font-weight:700}
+.btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap}
+
+/* FORMS */
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-label{font-size:10px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.7px}
+.form-ctrl{background:var(--s2);border:1px solid var(--br);border-radius:var(--rsm);
+  padding:10px 13px;color:var(--tx);font-size:13px;font-family:var(--font);
+  outline:none;transition:border-color .15s,box-shadow .15s;width:100%}
+.form-ctrl:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.form-ctrl::placeholder{color:var(--tx3)}
+.form-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.form-row .form-group{flex:1;min-width:110px}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:var(--rsm);border:1px solid var(--br)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--s2);padding:10px 13px;font-size:10px;font-weight:700;
+  color:var(--tx2);text-transform:uppercase;letter-spacing:.7px;
+  border-bottom:1px solid var(--br);text-align:left;white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--br);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--s2)}
+tbody td{padding:9px 13px;color:var(--tx);vertical-align:middle}
+tbody tr.cf-row td{background:rgba(239,68,68,.04)}
+
+/* PILLS */
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;
+  font-size:11px;font-weight:700;font-family:var(--mono);border:1px solid transparent}
+.pill-ok{background:var(--green-s);color:var(--green);border-color:rgba(16,185,129,.25)}
+.pill-cf{background:var(--red-s);color:var(--red);border-color:rgba(239,68,68,.25)}
+
+/* ALERTS */
+.alert{padding:10px 14px;border-radius:var(--rsm);font-size:13px;border:1px solid transparent;
+  display:flex;align-items:flex-start;gap:8px;line-height:1.5;margin-bottom:12px}
+.alert-e{background:var(--red-s);color:#f87171;border-color:rgba(239,68,68,.2)}
+.alert-s{background:var(--green-s);color:#34d399;border-color:rgba(16,185,129,.2)}
+.alert-i{background:var(--blue-s);color:#93c5fd;border-color:rgba(59,130,246,.2)}
+.alert-a{background:var(--amber-s);color:#fbbf24;border-color:rgba(245,158,11,.2)}
+
+/* DROP ZONE */
+.drop-zone{border:2px dashed var(--br);border-radius:var(--r);padding:50px 24px;
+  text-align:center;cursor:pointer;transition:all .2s;background:var(--s2);position:relative}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--blue);background:rgba(59,130,246,.06)}
+.dz-icon{font-size:44px;margin-bottom:12px}
+.dz-title{font-size:15px;font-weight:700;color:var(--tx);margin-bottom:6px}
+.dz-sub{font-size:12px;color:var(--tx2)}
+.dz-code{display:inline-block;background:var(--s3);border:1px solid var(--br2);border-radius:4px;
+  padding:1px 6px;font-family:var(--mono);font-size:11px;color:var(--blue)}
+
+/* HALL CHIPS */
+.hall-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.h-chip{padding:7px 16px;border-radius:var(--rsm);cursor:pointer;font-size:13px;font-weight:600;
+  border:1px solid var(--br);background:var(--s2);color:var(--tx2);transition:all .15s}
+.h-chip:hover{border-color:var(--br2);color:var(--tx)}
+.h-chip.active{background:var(--blue-s);color:var(--blue);border-color:rgba(59,130,246,.3)}
+
+/* SEAT GRID */
+.grid-scroll{overflow:auto;padding-bottom:6px}
+.seat-grid{display:inline-grid;gap:3px}
+.seat{border-radius:6px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;border:1.5px solid transparent;cursor:default;
+  transition:transform .1s;position:relative;overflow:hidden;font-family:var(--mono)}
+.seat:hover{transform:scale(1.18);z-index:10}
+.seat.empty{background:rgba(255,255,255,.03);border-color:var(--br)}
+.seat.cf::after{content:"!";position:absolute;top:1px;right:2px;font-size:7px;line-height:1;color:#ef4444}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--tx2)}
+.leg-dot{width:12px;height:12px;border-radius:3px}
+
+/* TOAST */
+#toast-wrap{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--s1);border:1px solid var(--br2);color:var(--tx);
+  padding:11px 16px;border-radius:var(--r);font-size:13px;font-weight:500;
+  box-shadow:0 8px 32px rgba(0,0,0,.5);animation:slideUp .3s ease;
+  display:flex;align-items:center;gap:8px;max-width:320px}
+@keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* SPINNER */
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.2);
+  border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:60px 20px;color:var(--tx2)}
+.empty .ei{font-size:44px;margin-bottom:12px;opacity:.5}
+.empty strong{display:block;font-size:16px;color:var(--tx3);margin-bottom:6px}
+.empty p{font-size:13px}
+
+/* DIST BAR */
+.dist-bar{display:flex;height:8px;border-radius:99px;overflow:hidden;margin-bottom:12px}
+.dist-seg{height:100%;transition:width .5s}
+
+/* CODE BLOCK */
+.code-block{background:var(--s2);border:1px solid var(--br);border-radius:var(--rsm);
+  padding:14px;font-family:var(--mono);font-size:12px;color:var(--tx2);line-height:1.7}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  :root{--sidebar:0px}
+  .sidebar{display:none}
+  .main{margin-left:0}
+  .topbar-stats{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-icon">🎓</div>
+    <div>ExamSeat Pro<span class="brand-sub">HALL ALLOCATION SYSTEM</span></div>
+  </div>
+  <div class="topbar-stats">
+    <div class="ts-item"><div class="ts-dot" id="dot-s"></div>Students: <strong id="ts-s">0</strong></div>
+    <div class="ts-item"><div class="ts-dot" id="dot-h"></div>Halls: <strong id="ts-h">0</strong></div>
+    <div class="ts-item"><div class="ts-dot" id="dot-a"></div>Allocated: <strong id="ts-a">0</strong></div>
+    <div class="ts-item"><div class="ts-dot" id="dot-c"></div>Conflicts: <strong id="ts-c">0</strong></div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-ghost btn-sm" onclick="loadMockData(200)">🎲 Load Demo</button>
+  </div>
+</header>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sb-section">
+    <div class="sb-label">Main</div>
+    <button class="nav-item active" onclick="nav('dashboard')"><span class="ni-icon">📊</span> Dashboard</button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Setup</div>
+    <button class="nav-item" onclick="nav('upload')"><span class="ni-icon">📤</span> Upload Students<span class="ni-badge b-blue" id="nb-s">0</span></button>
+    <button class="nav-item" onclick="nav('halls')"><span class="ni-icon">🏫</span> Manage Halls<span class="ni-badge b-blue" id="nb-h">0</span></button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Allocation</div>
+    <button class="nav-item" onclick="nav('allocate')"><span class="ni-icon">⚙️</span> Run Allocation</button>
+    <button class="nav-item" onclick="nav('visualize')"><span class="ni-icon">🗺️</span> Visualize Grid<span class="ni-badge b-green" id="nb-a">0</span></button>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Reports</div>
+    <button class="nav-item" onclick="nav('export')"><span class="ni-icon">📁</span> Export Reports</button>
+  </div>
+  <div class="sb-footer">Algorithm: Greedy adjacent-conflict avoidance<br>Subjects separated left &amp; above</div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+
+<!-- DASHBOARD -->
+<div id="page-dashboard" class="page active">
+  <div class="page-hdr">
+    <div class="page-hdr-row">
+      <div><h1>📊 Dashboard</h1><p>System overview and allocation status</p></div>
+      <div class="btn-row">
+        <button class="btn btn-ghost btn-sm" onclick="nav('upload')">Upload CSV</button>
+        <button class="btn btn-primary btn-sm" onclick="nav('allocate')">⚙️ Run Allocation</button>
+      </div>
+    </div>
+  </div>
+  <div class="stats-grid">
+    <div class="sc c-blue"><span class="sc-icon">👥</span><div class="sc-label">Total Students</div><div class="sc-val c-blue" id="d-s">0</div><div class="sc-sub" id="d-subs">0 subjects</div></div>
+    <div class="sc c-purple"><span class="sc-icon">🏫</span><div class="sc-label">Halls Configured</div><div class="sc-val c-purple" id="d-h">0</div><div class="sc-sub" id="d-cap">0 total seats</div></div>
+    <div class="sc c-green"><span class="sc-icon">✅</span><div class="sc-label">Allocated</div><div class="sc-val c-green" id="d-a">0</div><div class="prog-bar"><div class="prog-fill" id="d-abar" style="width:0%;background:var(--green)"></div></div></div>
+    <div class="sc c-amber"><span class="sc-icon">⏳</span><div class="sc-label">Unallocated</div><div class="sc-val c-amber" id="d-ua">0</div><div class="sc-sub" id="d-ua-sub">No overflow</div></div>
+    <div class="sc c-red"><span class="sc-icon">⚠️</span><div class="sc-label">Conflicts</div><div class="sc-val c-red" id="d-cf">0</div><div class="sc-sub">Adjacent same-subject</div></div>
+  </div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-hdr"><div class="card-title"><span class="ct-icon" style="background:var(--blue-s)">📚</span> Subject Distribution</div></div>
+      <div id="d-distbar" class="dist-bar"></div>
+      <div id="d-distlist"><div class="empty" style="padding:20px 0"><div class="ei" style="font-size:28px">📂</div><p>Upload students to see distribution</p></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><div class="card-title"><span class="ct-icon" style="background:var(--green-s)">🏫</span> Hall Capacity Usage</div></div>
+      <div id="d-husage"><div class="empty" style="padding:20px 0"><div class="ei" style="font-size:28px">🏗️</div><p>Add halls and run allocation</p></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px"><span class="ct-icon" style="background:var(--amber-s)">⚡</span> Quick Actions</div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="nav('upload')">📤 Upload CSV</button>
+      <button class="btn btn-ghost" onclick="loadMockData(150)">🎲 150 Students</button>
+      <button class="btn btn-ghost" onclick="loadMockData(500)">🎲 500 Students</button>
+      <button class="btn btn-ghost" onclick="nav('halls')">🏫 Manage Halls</button>
+      <button class="btn btn-primary" onclick="nav('allocate')">⚙️ Run Allocation</button>
+      <button class="btn btn-ghost" onclick="nav('visualize')">🗺️ View Grid</button>
+      <button class="btn btn-ghost" onclick="nav('export')">📁 Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- UPLOAD -->
+<div id="page-upload" class="page">
+  <div class="page-hdr">
+    <div class="page-hdr-row">
+      <div><h1>📤 Upload Students</h1><p>Import student data via CSV file</p></div>
+      <button class="btn btn-ghost btn-sm" onclick="downloadSampleCSV()">⬇ Sample CSV</button>
+    </div>
+  </div>
+  <div class="two-col">
+    <div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px"><span class="ct-icon" style="background:var(--blue-s)">📋</span> Upload CSV File</div>
+        <div class="drop-zone" id="drop-zone">
+          <input type="file" accept=".csv" id="csv-input" onchange="handleFile(event)"/>
+          <div class="dz-icon">📋</div>
+          <div class="dz-title" id="dz-title">Drop CSV here or click to browse</div>
+          <div class="dz-sub">Required columns: <span class="dz-code">studentId</span> <span class="dz-code">name</span> <span class="dz-code">subjectCode</span></div>
+        </div>
+        <div id="upload-err" style="display:none;margin-top:10px"></div>
+        <div id="upload-ok" style="display:none;margin-top:10px"></div>
+        <div class="btn-row" style="margin-top:14px">
+          <button class="btn btn-ghost btn-sm" onclick="loadMockData(150)">🎲 150 Mock</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadMockData(500)">🎲 500 Mock</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadMockData(1000)">🎲 1000 Mock</button>
+          <button class="btn btn-ghost btn-sm" onclick="downloadSampleCSV()">⬇ Sample</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px"><span class="ct-icon" style="background:var(--s3)">📖</span> CSV Format</div>
+        <div class="code-block">studentId,name,subjectCode<br>S00001,Alice Johnson,CS101<br>S00002,Bob Smith,MA201<br>S00003,Carol White,PH301</div>
+        <div style="margin-top:12px;font-size:13px;color:var(--tx2);line-height:1.8">
+          <strong style="color:var(--tx)">Columns:</strong><br>
+          • <span class="dz-code">studentId</span> — unique identifier<br>
+          • <span class="dz-code">name</span> — full student name<br>
+          • <span class="dz-code">subjectCode</span> — exam subject code
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><span class="ct-icon" style="background:var(--blue-s)">👥</span> Loaded Students</div>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--tx2)" id="stu-badge"></span>
+      </div>
+      <div id="students-tbl"><div class="empty"><div class="ei">👥</div><strong>No students loaded</strong><p>Upload a CSV file</p></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- HALLS -->
+<div id="page-halls" class="page">
+  <div class="page-hdr"><h1>🏫 Manage Halls</h1><p>Configure examination halls with row and column dimensions</p></div>
+  <div class="card">
+    <div class="card-title" style="margin-bottom:16px"><span class="ct-icon" style="background:var(--blue-s)">➕</span> <span id="hform-heading">Add New Hall</span></div>
+    <div class="form-row">
+      <div class="form-group" style="flex:2;min-width:180px"><label class="form-label">Hall Name</label><input class="form-ctrl" type="text" id="h-name" placeholder="e.g. Block A — Room 101"/></div>
+      <div class="form-group"><label class="form-label">Rows</label><input class="form-ctrl" type="number" id="h-rows" placeholder="10" min="1" max="100" style="width:90px"/></div>
+      <div class="form-group"><label class="form-label">Columns</label><input class="form-ctrl" type="number" id="h-cols" placeholder="6" min="1" max="100" style="width:90px"/></div>
+      <button class="btn btn-primary" id="hall-save-btn" onclick="saveHall()">➕ Add Hall</button>
+      <button class="btn btn-ghost" id="hall-cancel-btn" onclick="cancelHallEdit()" style="display:none">✕ Cancel</button>
+    </div>
+    <div id="hall-err" style="display:none;margin-top:10px"></div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden"><div id="halls-tbl"><div class="empty" style="padding:60px"><div class="ei">🏫</div><strong>No halls configured</strong><p>Add a hall above</p></div></div></div>
+</div>
+
+<!-- ALLOCATE -->
+<div id="page-allocate" class="page">
+  <div class="page-hdr"><h1>⚙️ Run Allocation</h1><p>Assign students to seats using the conflict-aware greedy algorithm</p></div>
+  <div class="two-col">
+    <div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px"><span class="ct-icon" style="background:var(--blue-s)">🔍</span> Pre-flight Check</div>
+        <div id="alloc-check"></div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn btn-success btn-lg" id="run-btn" onclick="runAllocation()">▶ Run Allocation</button>
+          <button class="btn btn-danger" onclick="resetAllocation()">🗑 Reset</button>
+        </div>
+        <div id="alloc-prog" style="display:none;margin-top:14px"><div style="display:flex;align-items:center;gap:10px;color:var(--tx2);font-size:13px"><div class="spinner"></div> Running allocation engine...</div></div>
+        <div id="alloc-msg" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px"><span class="ct-icon" style="background:var(--s3)">📖</span> Algorithm</div>
+        <div style="font-size:13px;color:var(--tx2);line-height:2">
+          <span style="color:var(--blue)">1.</span> Group by subjectCode, sort count ↓<br>
+          <span style="color:var(--blue)">2.</span> Iterate seats: Row → Column<br>
+          <span style="color:var(--blue)">3.</span> Check left & above neighbors<br>
+          <span style="color:var(--blue)">4.</span> Place largest non-conflicting subject<br>
+          <span style="color:var(--blue)">5.</span> If impossible → place, flag isConflict<br>
+          <span style="color:var(--blue)">6.</span> Overflow → unallocated list
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px"><span class="ct-icon" style="background:var(--green-s)">📈</span> Allocation Results</div>
+      <div id="alloc-res-empty" class="empty" style="padding:40px 0"><div class="ei" style="font-size:32px">⚙️</div><p>Run allocation to see results</p></div>
+      <div id="alloc-res" style="display:none">
+        <div class="three-col" style="margin-bottom:16px">
+          <div class="sc c-green" style="padding:14px"><div class="sc-label">Allocated</div><div class="sc-val c-green" id="r-a" style="font-size:24px">0</div></div>
+          <div class="sc c-amber" style="padding:14px"><div class="sc-label">Unallocated</div><div class="sc-val c-amber" id="r-ua" style="font-size:24px">0</div></div>
+          <div class="sc c-red" style="padding:14px"><div class="sc-label">Conflicts</div><div class="sc-val c-red" id="r-cf" style="font-size:24px">0</div></div>
+        </div>
+        <div id="r-time" style="font-size:12px;color:var(--tx2);margin-bottom:14px"></div>
+        <div id="r-breakdown"></div>
+        <div class="btn-row" style="margin-top:14px">
+          <button class="btn btn-primary btn-sm" onclick="nav('visualize')">🗺️ View Grid</button>
+          <button class="btn btn-ghost btn-sm" onclick="nav('export')">📁 Export</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card" id="unalloc-card" style="display:none">
+    <div class="card-title" style="margin-bottom:14px"><span class="ct-icon" style="background:var(--amber-s)">⚠️</span> Unallocated Students</div>
+    <div id="unalloc-list"></div>
+  </div>
+</div>
+
+<!-- VISUALIZE -->
+<div id="page-visualize" class="page">
+  <div class="page-hdr">
+    <div class="page-hdr-row">
+      <div><h1>🗺️ Seat Visualization</h1><p>Color-coded 2D grid per hall</p></div>
+      <button class="btn btn-ghost btn-sm" onclick="nav('export')">📁 Export</button>
+    </div>
+  </div>
+  <div id="viz-empty" class="card"><div class="empty"><div class="ei">🗺️</div><strong>No allocation data</strong><p>Run allocation first</p><button class="btn btn-primary" style="margin-top:16px" onclick="nav('allocate')">⚙️ Allocate</button></div></div>
+  <div id="viz-content" style="display:none">
+    <div class="card" style="padding:16px 20px;margin-bottom:10px">
+      <div class="legend" id="viz-legend"></div>
+      <div style="display:flex;align-items:center;gap:16px;font-size:12px;color:var(--tx2)">
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:13px;height:13px;background:rgba(239,68,68,.18);border:1.5px solid rgba(239,68,68,.5);border-radius:3px;display:inline-block"></span> Conflict seat</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:13px;height:13px;background:rgba(255,255,255,.03);border:1.5px solid var(--br);border-radius:3px;display:inline-block"></span> Empty seat</span>
+      </div>
+    </div>
+    <div class="hall-chips" id="hall-chips"></div>
+    <div class="card" id="grid-card">
+      <div class="card-hdr"><div class="card-title" id="grid-title">Hall Grid</div><div style="font-size:12px;color:var(--tx2)" id="grid-meta"></div></div>
+      <div class="grid-scroll">
+        <div style="display:flex;gap:3px;margin-bottom:3px;padding-left:29px" id="col-hdr"></div>
+        <div style="display:flex;gap:3px">
+          <div id="row-hdr" style="display:flex;flex-direction:column;gap:3px;width:26px"></div>
+          <div id="seat-grid" class="seat-grid"></div>
+        </div>
+      </div>
+      <div id="grid-stats" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--br);display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:var(--tx2)"></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><div class="card-title"><span class="ct-icon" style="background:var(--blue-s)">🔍</span> Allocation Table</div></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <input class="form-ctrl" type="text" id="tbl-q" placeholder="Search name, ID, subject…" oninput="filterTbl()" style="max-width:250px"/>
+        <select class="form-ctrl" id="tbl-hall" onchange="filterTbl()" style="max-width:190px"><option value="">All Halls</option></select>
+        <select class="form-ctrl" id="tbl-sub" onchange="filterTbl()" style="max-width:160px"><option value="">All Subjects</option></select>
+        <select class="form-ctrl" id="tbl-cf" onchange="filterTbl()" style="max-width:150px"><option value="">All Seats</option><option value="1">Conflicts Only</option><option value="0">No Conflicts</option></select>
+      </div>
+      <div class="tbl-wrap" id="alloc-tbl"></div>
+      <div id="tbl-count" style="margin-top:8px;font-size:11px;color:var(--tx3)"></div>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT -->
+<div id="page-export" class="page">
+  <div class="page-hdr"><h1>📁 Export Reports</h1><p>Download allocation data as CSV or PDF hall tickets</p></div>
+  <div id="export-empty" class="card"><div class="empty"><div class="ei">📁</div><strong>No data to export</strong><p>Run allocation first</p><button class="btn btn-primary" style="margin-top:16px" onclick="nav('allocate')">⚙️ Allocate</button></div></div>
+  <div id="export-content" style="display:none">
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-title" style="margin-bottom:14px"><span class="ct-icon" style="background:var(--blue-s)">📊</span> Export Summary</div>
+      <div id="exp-summary" style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px;color:var(--tx2)"></div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px"><span class="ct-icon" style="background:var(--green-s)">📄</span> CSV Export</div>
+        <p style="font-size:13px;color:var(--tx2);margin-bottom:14px;line-height:1.7">Full spreadsheet with every student's hall, row, column and conflict status.</p>
+        <div class="code-block" style="margin-bottom:14px">StudentID, Name, Subject, Hall, Row, Col, Conflict</div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Filter by Hall</label>
+          <select class="form-ctrl" id="csv-hall"><option value="">All Halls</option></select>
+        </div>
+        <button class="btn btn-success" onclick="doCSV()">⬇ Download CSV</button>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px"><span class="ct-icon" style="background:var(--red-s)">📑</span> PDF Student Hall Tickets</div>
+        <p style="font-size:13px;color:var(--tx2);margin-bottom:14px;line-height:1.7">Generates clean, student-friendly hall tickets — one per student with their seat details clearly printed.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--tx2)"><input type="checkbox" id="pdf-tickets" checked/> Individual hall tickets (1 per student)</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--tx2)"><input type="checkbox" id="pdf-master" checked/> Master allocation table</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--tx2)"><input type="checkbox" id="pdf-summary" checked/> Summary report</label>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Filter by Hall</label>
+          <select class="form-ctrl" id="pdf-hall"><option value="">All Halls</option></select>
+        </div>
+        <button class="btn btn-danger" id="pdf-btn" onclick="doPDF()">⬇ Download PDF</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px"><span class="ct-icon" style="background:var(--amber-s)">📋</span> Per-Hall Summary</div>
+      <div class="tbl-wrap" id="exp-hall-tbl"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+<div id="toast-wrap"></div>
+
+<script>
+// ═══════════ STATE ═══════════
+const S = {
+  students: [], halls: [], allocations: [], unallocated: [],
+  subjectMap: {}, hallSeq: 1, hallEditId: null, activeHallId: null
+};
+
+const COLORS = [
+  {bg:'rgba(59,130,246,.18)',bd:'#3b82f6',tx:'#93c5fd'},
+  {bg:'rgba(245,158,11,.18)',bd:'#f59e0b',tx:'#fcd34d'},
+  {bg:'rgba(16,185,129,.18)',bd:'#10b981',tx:'#6ee7b7'},
+  {bg:'rgba(239,68,68,.18)', bd:'#ef4444',tx:'#fca5a5'},
+  {bg:'rgba(139,92,246,.18)',bd:'#8b5cf6',tx:'#c4b5fd'},
+  {bg:'rgba(6,182,212,.18)', bd:'#06b6d4',tx:'#67e8f9'},
+  {bg:'rgba(249,115,22,.18)',bd:'#f97316',tx:'#fdba74'},
+  {bg:'rgba(236,72,153,.18)',bd:'#ec4899',tx:'#f9a8d4'},
+  {bg:'rgba(132,204,22,.18)',bd:'#84cc16',tx:'#bef264'},
+  {bg:'rgba(251,191,36,.18)',bd:'#fbbf24',tx:'#fde68a'},
+];
+const scol = c => COLORS[(S.subjectMap[c]??0) % COLORS.length];
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// ═══════════ NAV ═══════════
+function nav(p) {
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  const pages=['dashboard','upload','halls','allocate','visualize','export'];
+  document.querySelectorAll('.nav-item')[pages.indexOf(p)]?.classList.add('active');
+  if(p==='dashboard') refreshDash();
+  if(p==='allocate') renderCheck();
+  if(p==='visualize') renderViz();
+  if(p==='export') renderExport();
+}
+
+// ═══════════ TOAST ═══════════
+function toast(msg,icon='✅') {
+  const w=document.getElementById('toast-wrap');
+  const t=document.createElement('div'); t.className='toast';
+  t.innerHTML=`${icon} ${msg}`; w.appendChild(t);
+  setTimeout(()=>t.remove(),3200);
+}
+
+function ae(el,msg,type='e'){el.innerHTML=`<div class="alert alert-${type}">${msg}</div>`;el.style.display='block';}
+
+// ═══════════ TOPBAR ═══════════
+function updateTopbar() {
+  document.getElementById('ts-s').textContent=S.students.length;
+  document.getElementById('ts-h').textContent=S.halls.length;
+  document.getElementById('ts-a').textContent=S.allocations.length;
+  const cf=S.allocations.filter(a=>a.isConflict).length;
+  document.getElementById('ts-c').textContent=cf;
+  document.getElementById('nb-s').textContent=S.students.length;
+  document.getElementById('nb-h').textContent=S.halls.length;
+  document.getElementById('nb-a').textContent=S.allocations.length;
+  ['s','h','a'].forEach(k=>{
+    const val=k==='s'?S.students.length:k==='h'?S.halls.length:S.allocations.length;
+    document.getElementById('dot-'+k).className='ts-dot'+(val>0?' on':'');
+  });
+  document.getElementById('dot-c').className='ts-dot'+(cf>0?' on':'');
+}
+
+// ═══════════ UPLOAD ═══════════
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');const f=e.dataTransfer.files[0];if(f)parseCSV(f);});
+function handleFile(e){const f=e.target.files[0];if(f)parseCSV(f);}
+
+function parseCSV(file) {
+  const errEl=document.getElementById('upload-err'), okEl=document.getElementById('upload-ok');
+  errEl.style.display='none'; okEl.style.display='none';
+  Papa.parse(file,{header:true,skipEmptyLines:true,
+    complete(res){
+      const miss=['studentId','name','subjectCode'].filter(r=>!(res.meta.fields||[]).includes(r));
+      if(miss.length){ae(errEl,'Missing columns: '+miss.join(', '));return;}
+      const data=res.data.filter(r=>r.studentId&&r.name&&r.subjectCode);
+      if(!data.length){ae(errEl,'No valid rows found.');return;}
+      ingest(data);
+      document.getElementById('dz-title').textContent=`✅ ${file.name} — ${data.length} students`;
+      ae(okEl,`Loaded ${data.length} students from ${file.name}`,'s');
+      toast(`Loaded ${data.length} students`);
+    },
+    error(e){ae(errEl,'Parse error: '+e.message);}
+  });
+}
+
+function ingest(data) {
+  S.students=data; S.allocations=[]; S.unallocated=[];
+  const subs=[...new Set(data.map(s=>s.subjectCode))];
+  S.subjectMap={}; subs.forEach((s,i)=>S.subjectMap[s]=i);
+  renderStudentsTbl(); updateTopbar(); refreshDash();
+}
+
+function renderStudentsTbl() {
+  const w=document.getElementById('students-tbl');
+  document.getElementById('stu-badge').textContent=`(${S.students.length})`;
+  if(!S.students.length){w.innerHTML=`<div class="empty"><div class="ei">👥</div><strong>No students</strong><p>Upload a CSV</p></div>`;return;}
+  const rows=S.students.slice(0,300);
+  w.innerHTML=`<div class="tbl-wrap"><table><thead><tr><th>Student ID</th><th>Name</th><th>Subject</th></tr></thead><tbody>
+    ${rows.map(r=>{const c=scol(r.subjectCode);return `<tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--tx2)">${esc(r.studentId)}</td>
+      <td>${esc(r.name)}</td>
+      <td><span class="pill" style="background:${c.bg};color:${c.tx};border-color:${c.bd}">${esc(r.subjectCode)}</span></td>
+    </tr>`;}).join('')}
+  </tbody></table></div>
+  ${S.students.length>300?`<div style="padding:8px 12px;font-size:11px;color:var(--tx3)">Showing 300 of ${S.students.length}</div>`:''}`;
+}
+
+function loadMockData(n) {
+  const subs=['CS101','MA201','PH301','CH401','EN501'];
+  const fn=['Alice','Bob','Carol','David','Eve','Frank','Grace','Henry','Ivy','Jack','Lena','Mike','Nina','Oscar','Priya','Raj','Sara','Tom','Uma','Vikram'];
+  const ln=['Smith','Johnson','Williams','Brown','Jones','Garcia','Miller','Davis','Wilson','Taylor','Anderson','Thomas','Moore','Jackson','Martin','Patel','Kumar','Singh','Sharma','Reddy'];
+  const rows=[];
+  for(let i=1;i<=n;i++){
+    rows.push({
+      studentId:'S'+String(i).padStart(5,'0'),
+      name:fn[Math.floor(Math.random()*fn.length)]+' '+ln[Math.floor(Math.random()*ln.length)],
+      subjectCode:subs[Math.floor(Math.random()*subs.length)]
+    });
+  }
+  ingest(rows);
+  document.getElementById('dz-title').textContent=`✅ mock_data.csv — ${n} students`;
+  ae(document.getElementById('upload-ok'),`Loaded ${n} mock students (5 subjects)`,'s');
+  document.getElementById('upload-ok').style.display='block';
+  toast(`Loaded ${n} mock students`);
+}
+
+function downloadSampleCSV() {
+  const csv='studentId,name,subjectCode\nS00001,Alice Johnson,CS101\nS00002,Bob Smith,MA201\nS00003,Carol White,PH301\nS00004,David Lee,CH401\nS00005,Eve Brown,EN501';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='sample_students.csv'; a.click();
+  toast('Sample CSV downloaded','📄');
+}
+
+// ═══════════ HALLS ═══════════
+function saveHall() {
+  const name=document.getElementById('h-name').value.trim();
+  const rows=parseInt(document.getElementById('h-rows').value);
+  const cols=parseInt(document.getElementById('h-cols').value);
+  const errEl=document.getElementById('hall-err'); errEl.style.display='none';
+  if(!name){ae(errEl,'Please enter a hall name.');return;}
+  if(!rows||rows<1||rows>100){ae(errEl,'Rows must be 1–100.');return;}
+  if(!cols||cols<1||cols>100){ae(errEl,'Columns must be 1–100.');return;}
+  if(S.hallEditId!==null){
+    S.halls=S.halls.map(h=>h.id===S.hallEditId?{...h,name,rows,cols,capacity:rows*cols}:h);
+    cancelHallEdit(); toast('Hall updated','✏️');
+  } else {
+    S.halls.push({id:S.hallSeq++,name,rows,cols,capacity:rows*cols});
+    toast('Hall added','🏫');
+  }
+  document.getElementById('h-name').value='';
+  document.getElementById('h-rows').value='';
+  document.getElementById('h-cols').value='';
+  S.allocations=[]; S.unallocated=[];
+  renderHallsTbl(); updateTopbar(); refreshDash();
+}
+
+function cancelHallEdit() {
+  S.hallEditId=null;
+  document.getElementById('hall-save-btn').textContent='➕ Add Hall';
+  document.getElementById('hall-cancel-btn').style.display='none';
+  document.getElementById('hform-heading').textContent='Add New Hall';
+  document.getElementById('h-name').value='';
+  document.getElementById('h-rows').value='';
+  document.getElementById('h-cols').value='';
+}
+
+function editHall(id) {
+  const h=S.halls.find(x=>x.id===id); if(!h)return;
+  S.hallEditId=id;
+  document.getElementById('h-name').value=h.name;
+  document.getElementById('h-rows').value=h.rows;
+  document.getElementById('h-cols').value=h.cols;
+  document.getElementById('hall-save-btn').textContent='✏️ Update';
+  document.getElementById('hall-cancel-btn').style.display='';
+  document.getElementById('hform-heading').textContent='Edit Hall';
+  document.getElementById('h-name').focus();
+}
+
+function removeHall(id) {
+  if(!confirm('Remove this hall? Allocations will reset.'))return;
+  S.halls=S.halls.filter(h=>h.id!==id);
+  S.allocations=[]; S.unallocated=[];
+  renderHallsTbl(); updateTopbar(); refreshDash();
+  toast('Hall removed','🗑');
+}
+
+function renderHallsTbl() {
+  const w=document.getElementById('halls-tbl');
+  if(!S.halls.length){w.innerHTML=`<div class="empty" style="padding:60px"><div class="ei">🏫</div><strong>No halls</strong><p>Add a hall above</p></div>`;return;}
+  const total=S.halls.reduce((a,h)=>a+h.capacity,0);
+  w.innerHTML=`<table><thead><tr><th>#</th><th>Hall Name</th><th>Rows</th><th>Columns</th><th>Capacity</th><th>Actions</th></tr></thead><tbody>
+    ${S.halls.map((h,i)=>`<tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--tx3)">${i+1}</td>
+      <td style="font-weight:600">${esc(h.name)}</td>
+      <td style="font-family:var(--mono)">${h.rows}</td>
+      <td style="font-family:var(--mono)">${h.cols}</td>
+      <td><strong style="font-family:var(--mono);color:var(--blue)">${h.capacity}</strong></td>
+      <td style="display:flex;gap:6px">
+        <button class="btn btn-amber btn-sm" onclick="editHall(${h.id})">✏️ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="removeHall(${h.id})">🗑 Remove</button>
+      </td>
+    </tr>`).join('')}
+  </tbody><tfoot><tr style="border-top:2px solid var(--br2)">
+    <td colspan="4" style="padding:10px 13px;font-weight:600;color:var(--tx2);font-size:12px">TOTAL</td>
+    <td style="padding:10px 13px;font-weight:800;font-family:var(--mono);color:var(--blue)">${total}</td>
+    <td></td>
+  </tr></tfoot></table>`;
+}
+
+// ═══════════ ALLOCATION ALGORITHM ═══════════
+function allocate(halls, students) {
+  const grp={};
+  students.forEach(s=>{if(!grp[s.subjectCode])grp[s.subjectCode]=[];grp[s.subjectCode].push({...s});});
+  const subs=Object.keys(grp).sort((a,b)=>grp[b].length-grp[a].length);
+  const subIdx={}; subs.forEach((s,i)=>subIdx[s]=i);
+  const queues=subs.map(s=>[...grp[s]]);
+  const allocations=[];
+
+  for(const hall of halls){
+    const grid=Array.from({length:hall.rows},()=>Array(hall.cols).fill(null));
+    for(let r=0;r<hall.rows;r++){
+      for(let c=0;c<hall.cols;c++){
+        const active=queues.filter(q=>q.length>0);
+        if(!active.length)break;
+        const left=c>0&&grid[r][c-1]?grid[r][c-1].subjectCode:null;
+        const above=r>0&&grid[r-1][c]?grid[r-1][c].subjectCode:null;
+        const forbidden=new Set([left,above].filter(Boolean));
+        const sorted=[...active].sort((a,b)=>b.length-a.length);
+        const chosen=sorted.find(q=>!forbidden.has(q[0].subjectCode))||sorted[0];
+        const isConflict=forbidden.has(chosen[0].subjectCode);
+        const stu=chosen.shift();
+        grid[r][c]={...stu,row:r,col:c};
+        allocations.push({...stu,row:r,col:c,hallId:hall.id,hallName:hall.name,isConflict});
+      }
+    }
+  }
+  const placed=new Set(allocations.map(a=>a.studentId));
+  const unallocated=students.filter(s=>!placed.has(s.studentId));
+  return {allocations,unallocated,subIdx};
+}
+
+function renderCheck() {
+  const el=document.getElementById('alloc-check');
+  let html='';
+  if(!S.students.length) html+=`<div class="alert alert-e">❌ No students loaded — go to Upload tab</div>`;
+  else html+=`<div class="alert alert-s">✅ ${S.students.length} students loaded (${Object.keys(S.subjectMap).length} subjects)</div>`;
+  if(!S.halls.length) html+=`<div class="alert alert-e">❌ No halls configured — go to Manage Halls tab</div>`;
+  else {
+    const cap=S.halls.reduce((a,h)=>a+h.capacity,0);
+    html+=`<div class="alert alert-s">✅ ${S.halls.length} halls — ${cap} total seats</div>`;
+    if(cap<S.students.length) html+=`<div class="alert alert-a">⚠ Capacity (${cap}) &lt; Students (${S.students.length}) — ${S.students.length-cap} will be unallocated</div>`;
+  }
+  if(S.allocations.length) html+=`<div class="alert alert-i">ℹ Previous allocation exists — re-run to refresh</div>`;
+  el.innerHTML=html;
+}
+
+function runAllocation() {
+  if(!S.students.length){toast('Upload students first','⚠️');return;}
+  if(!S.halls.length){toast('Add halls first','⚠️');return;}
+  document.getElementById('alloc-prog').style.display='flex';
+  document.getElementById('run-btn').disabled=true;
+  document.getElementById('alloc-msg').innerHTML='';
+  setTimeout(()=>{
+    const t0=performance.now();
+    const {allocations,unallocated,subIdx}=allocate(S.halls,S.students);
+    const elapsed=((performance.now()-t0)/1000).toFixed(2);
+    S.allocations=allocations; S.unallocated=unallocated;
+    Object.assign(S.subjectMap,subIdx);
+    document.getElementById('alloc-prog').style.display='none';
+    document.getElementById('run-btn').disabled=false;
+    const cf=allocations.filter(a=>a.isConflict).length;
+    document.getElementById('alloc-res-empty').style.display='none';
+    document.getElementById('alloc-res').style.display='block';
+    document.getElementById('r-a').textContent=allocations.length;
+    document.getElementById('r-ua').textContent=unallocated.length;
+    document.getElementById('r-cf').textContent=cf;
+    document.getElementById('r-time').textContent=`⏱ Completed in ${elapsed}s`;
+
+    document.getElementById('r-breakdown').innerHTML=`<div class="tbl-wrap"><table>
+      <thead><tr><th>Hall</th><th>Seated</th><th>Capacity</th><th>Usage</th><th>Conflicts</th></tr></thead>
+      <tbody>${S.halls.map(h=>{
+        const ha=allocations.filter(a=>a.hallId===h.id);
+        const hcf=ha.filter(a=>a.isConflict).length;
+        const pct=(ha.length/h.capacity*100).toFixed(0);
+        return `<tr>
+          <td style="font-weight:600">${esc(h.name)}</td>
+          <td style="font-family:var(--mono)">${ha.length}</td>
+          <td style="font-family:var(--mono)">${h.capacity}</td>
+          <td><div style="display:flex;align-items:center;gap:8px"><div class="prog-bar" style="width:80px"><div class="prog-fill" style="width:${pct}%;background:var(--blue)"></div></div><span style="font-size:11px;color:var(--tx2)">${pct}%</span></div></td>
+          <td><span class="${hcf>0?'pill pill-cf':'pill pill-ok'}">${hcf>0?'⚠ '+hcf:'✓ 0'}</span></td>
+        </tr>`;
+      }).join('')}</tbody></table></div>`;
+
+    if(unallocated.length){
+      document.getElementById('unalloc-card').style.display='block';
+      document.getElementById('unalloc-list').innerHTML=`
+        <div class="alert alert-a" style="margin-bottom:12px">⚠ ${unallocated.length} students could not be seated. Add more halls.</div>
+        <div class="tbl-wrap"><table><thead><tr><th>Student ID</th><th>Name</th><th>Subject</th></tr></thead><tbody>
+          ${unallocated.map(u=>{const c=scol(u.subjectCode);return `<tr>
+            <td style="font-family:var(--mono);font-size:11px">${esc(u.studentId)}</td>
+            <td>${esc(u.name)}</td>
+            <td><span class="pill" style="background:${c.bg};color:${c.tx};border-color:${c.bd}">${esc(u.subjectCode)}</span></td>
+          </tr>`;}).join('')}</tbody></table></div>`;
+    } else document.getElementById('unalloc-card').style.display='none';
+
+    document.getElementById('alloc-msg').innerHTML=`<div class="alert alert-s">✅ Done — ${allocations.length} seated in ${elapsed}s. ${cf} conflict(s).</div>`;
+    updateTopbar(); refreshDash();
+    toast(`${allocations.length} allocated (${cf} conflicts)`,cf>0?'⚠️':'✅');
+  },60);
+}
+
+function resetAllocation() {
+  if(S.allocations.length&&!confirm('Reset allocation?'))return;
+  S.allocations=[]; S.unallocated=[];
+  document.getElementById('alloc-res-empty').style.display='block';
+  document.getElementById('alloc-res').style.display='none';
+  document.getElementById('unalloc-card').style.display='none';
+  document.getElementById('alloc-msg').innerHTML='';
+  updateTopbar(); refreshDash(); toast('Reset','🗑');
+}
+
+// ═══════════ DASHBOARD ═══════════
+function refreshDash() {
+  const n=S.students.length, cap=S.halls.reduce((a,h)=>a+h.capacity,0);
+  const alloc=S.allocations.length, unalloc=S.unallocated.length;
+  const cf=S.allocations.filter(a=>a.isConflict).length;
+  const subs=Object.keys(S.subjectMap);
+  document.getElementById('d-s').textContent=n;
+  document.getElementById('d-subs').textContent=subs.length+' subjects';
+  document.getElementById('d-h').textContent=S.halls.length;
+  document.getElementById('d-cap').textContent=cap+' seats';
+  document.getElementById('d-a').textContent=alloc;
+  document.getElementById('d-abar').style.width=cap?(alloc/cap*100)+'%':'0%';
+  document.getElementById('d-ua').textContent=unalloc;
+  document.getElementById('d-ua-sub').textContent=unalloc>0?'⚠ Capacity exceeded':'No overflow';
+  document.getElementById('d-cf').textContent=cf;
+
+  const db=document.getElementById('d-distbar'), dl=document.getElementById('d-distlist');
+  if(!n){db.innerHTML='';dl.innerHTML=`<div class="empty" style="padding:20px 0"><div class="ei" style="font-size:28px">📂</div><p>Upload students</p></div>`;return;}
+  const sm={};S.students.forEach(s=>sm[s.subjectCode]=(sm[s.subjectCode]||0)+1);
+  const sorted=Object.entries(sm).sort((a,b)=>b[1]-a[1]);
+  db.innerHTML=sorted.map(([code,cnt])=>`<div class="dist-seg" style="width:${(cnt/n*100).toFixed(1)}%;background:${scol(code).bd}"></div>`).join('');
+  dl.innerHTML=sorted.map(([code,cnt])=>{const c=scol(code);return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <span style="width:10px;height:10px;border-radius:3px;background:${c.bd};flex-shrink:0;display:inline-block"></span>
+    <span style="font-weight:700;font-size:12px;min-width:55px;font-family:var(--mono);color:${c.tx}">${esc(code)}</span>
+    <div class="prog-bar" style="flex:1"><div class="prog-fill" style="width:${(cnt/n*100).toFixed(1)}%;background:${c.bd}"></div></div>
+    <span style="font-family:var(--mono);font-size:11px;color:var(--tx2)">${cnt}</span>
+  </div>`;}).join('');
+
+  const hu=document.getElementById('d-husage');
+  if(!S.halls.length||!alloc){hu.innerHTML=`<div class="empty" style="padding:20px 0"><div class="ei" style="font-size:28px">🏗️</div><p>Add halls &amp; run allocation</p></div>`;return;}
+  hu.innerHTML=S.halls.map(h=>{
+    const ha=S.allocations.filter(a=>a.hallId===h.id).length;
+    const pct=(ha/h.capacity*100).toFixed(0);
+    return `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-weight:600;font-size:13px">${esc(h.name)}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--tx2)">${ha}/${h.capacity}</span>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:var(--blue)"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════ VISUALIZE ═══════════
+function renderViz() {
+  const has=S.allocations.length>0;
+  document.getElementById('viz-empty').style.display=has?'none':'block';
+  document.getElementById('viz-content').style.display=has?'block':'none';
+  if(!has)return;
+  const subs=Object.keys(S.subjectMap).sort((a,b)=>S.subjectMap[a]-S.subjectMap[b]);
+  document.getElementById('viz-legend').innerHTML=subs.map(s=>{const c=scol(s);return `<div class="legend-item"><div class="leg-dot" style="background:${c.bg};border:2px solid ${c.bd}"></div>${esc(s)}</div>`;}).join('');
+  const usedIds=[...new Set(S.allocations.map(a=>a.hallId))];
+  const vHalls=S.halls.filter(h=>usedIds.includes(h.id));
+  if(!S.activeHallId||!vHalls.find(h=>h.id===S.activeHallId)) S.activeHallId=vHalls[0]?.id;
+  document.getElementById('hall-chips').innerHTML=vHalls.map(h=>`<div class="h-chip ${h.id===S.activeHallId?'active':''}" onclick="selectHall(${h.id})">${esc(h.name)}</div>`).join('');
+  renderGrid(S.activeHallId);
+  document.getElementById('tbl-hall').innerHTML='<option value="">All Halls</option>'+S.halls.map(h=>`<option value="${h.id}">${esc(h.name)}</option>`).join('');
+  document.getElementById('tbl-sub').innerHTML='<option value="">All Subjects</option>'+subs.map(s=>`<option value="${s}">${esc(s)}</option>`).join('');
+  renderAllocTbl(S.allocations);
+}
+
+function selectHall(id) {
+  S.activeHallId=id;
+  document.querySelectorAll('.h-chip').forEach(el=>el.classList.toggle('active',+el.getAttribute('onclick').match(/\d+/)[0]===id));
+  renderGrid(id);
+}
+
+function renderGrid(hallId) {
+  const hall=S.halls.find(h=>h.id===hallId); if(!hall)return;
+  const allocs=S.allocations.filter(a=>a.hallId===hallId);
+  const grid=Array.from({length:hall.rows},()=>Array(hall.cols).fill(null));
+  allocs.forEach(a=>{if(grid[a.row])grid[a.row][a.col]=a;});
+  document.getElementById('grid-title').textContent=`🏫 ${hall.name}`;
+  document.getElementById('grid-meta').textContent=`${hall.rows}×${hall.cols} = ${hall.rows*hall.cols} seats`;
+  const cs=Math.max(30,Math.min(48,Math.floor(680/hall.cols)));
+  const fs=Math.max(7,Math.min(10,cs/4.8));
+  document.getElementById('col-hdr').innerHTML=Array.from({length:hall.cols},(_,c)=>`<div style="width:${cs}px;text-align:center;font-size:9px;color:var(--tx3);font-family:var(--mono)">${c+1}</div>`).join('');
+  document.getElementById('row-hdr').innerHTML=Array.from({length:hall.rows},(_,r)=>`<div style="height:${cs}px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--tx3);font-family:var(--mono)">${r+1}</div>`).join('');
+  const sg=document.getElementById('seat-grid');
+  sg.style.gridTemplateColumns=`repeat(${hall.cols},${cs}px)`;
+  sg.style.gridTemplateRows=`repeat(${hall.rows},${cs}px)`;
+  sg.innerHTML='';
+  for(let r=0;r<hall.rows;r++){
+    for(let c=0;c<hall.cols;c++){
+      const a=grid[r][c];
+      const div=document.createElement('div');
+      div.className='seat'+(a?a.isConflict?' cf':'':' empty');
+      div.style.width=div.style.height=cs+'px';
+      div.style.fontSize=fs+'px';
+      if(a){
+        const col=scol(a.subjectCode);
+        div.style.background=a.isConflict?'rgba(239,68,68,.18)':col.bg;
+        div.style.borderColor=a.isConflict?'rgba(239,68,68,.5)':col.bd;
+        div.style.color=a.isConflict?'#fca5a5':col.tx;
+        div.title=`${a.studentId}\n${a.name}\n${a.subjectCode}${a.isConflict?'\n⚠ Conflict':''}`;
+        div.innerHTML=`<span style="font-size:${fs}px;line-height:1.1;text-align:center;word-break:break-all">${esc(a.subjectCode)}</span>`;
+      }
+      sg.appendChild(div);
+    }
+  }
+  const cf=allocs.filter(a=>a.isConflict).length;
+  const pct=(allocs.length/(hall.rows*hall.cols)*100).toFixed(1);
+  const subC={};allocs.forEach(a=>subC[a.subjectCode]=(subC[a.subjectCode]||0)+1);
+  document.getElementById('grid-stats').innerHTML=`
+    <span>🪑 <strong>${allocs.length}</strong>/${hall.rows*hall.cols} filled (${pct}%)</span>
+    <span>⚠ <strong>${cf}</strong> conflicts</span>
+    <span>📚 ${Object.entries(subC).map(([s,n])=>`<span style="font-family:var(--mono)">${s}(${n})</span>`).join(' ')}</span>`;
+}
+
+function renderAllocTbl(data) {
+  const w=document.getElementById('alloc-tbl');
+  document.getElementById('tbl-count').textContent=`Showing ${Math.min(data.length,500)} of ${data.length}`;
+  if(!data.length){w.innerHTML=`<div style="padding:24px;text-align:center;color:var(--tx3);font-size:13px">No results</div>`;return;}
+  w.innerHTML=`<table><thead><tr><th>Student ID</th><th>Name</th><th>Subject</th><th>Hall</th><th>Row</th><th>Col</th><th>Status</th></tr></thead><tbody>
+    ${data.slice(0,500).map(a=>{const c=scol(a.subjectCode);return `<tr class="${a.isConflict?'cf-row':''}">
+      <td style="font-family:var(--mono);font-size:11px;color:var(--tx2)">${esc(a.studentId)}</td>
+      <td>${esc(a.name)}</td>
+      <td><span class="pill" style="background:${c.bg};color:${c.tx};border-color:${c.bd}">${esc(a.subjectCode)}</span></td>
+      <td style="font-size:12px;color:var(--tx2)">${esc(a.hallName)}</td>
+      <td style="font-family:var(--mono);font-size:11px">${a.row+1}</td>
+      <td style="font-family:var(--mono);font-size:11px">${a.col+1}</td>
+      <td>${a.isConflict?'<span class="pill pill-cf">⚠ Conflict</span>':'<span class="pill pill-ok">✓ OK</span>'}</td>
+    </tr>`;}).join('')}
+  </tbody></table>`;
+}
+
+function filterTbl() {
+  const q=document.getElementById('tbl-q').value.toLowerCase();
+  const hall=document.getElementById('tbl-hall').value;
+  const sub=document.getElementById('tbl-sub').value;
+  const cf=document.getElementById('tbl-cf').value;
+  renderAllocTbl(S.allocations.filter(a=>{
+    if(hall&&String(a.hallId)!==hall)return false;
+    if(sub&&a.subjectCode!==sub)return false;
+    if(cf==='1'&&!a.isConflict)return false;
+    if(cf==='0'&&a.isConflict)return false;
+    if(q&&!`${a.studentId} ${a.name} ${a.subjectCode}`.toLowerCase().includes(q))return false;
+    return true;
+  }));
+}
+
+// ═══════════ EXPORT ═══════════
+function renderExport() {
+  const has=S.allocations.length>0;
+  document.getElementById('export-empty').style.display=has?'none':'block';
+  document.getElementById('export-content').style.display=has?'block':'none';
+  if(!has)return;
+  const cf=S.allocations.filter(a=>a.isConflict).length;
+  document.getElementById('exp-summary').innerHTML=`
+    <span>✅ <strong style="color:var(--tx)">${S.allocations.length}</strong> allocated</span>
+    <span>⏳ <strong style="color:var(--tx)">${S.unallocated.length}</strong> unallocated</span>
+    <span>⚠ <strong style="color:var(--tx)">${cf}</strong> conflicts</span>
+    <span>🏫 <strong style="color:var(--tx)">${S.halls.length}</strong> halls</span>
+    <span>📚 <strong style="color:var(--tx)">${Object.keys(S.subjectMap).length}</strong> subjects</span>`;
+  const opts='<option value="">All Halls</option>'+S.halls.map(h=>`<option value="${h.id}">${esc(h.name)}</option>`).join('');
+  document.getElementById('csv-hall').innerHTML=opts;
+  document.getElementById('pdf-hall').innerHTML=opts;
+  document.getElementById('exp-hall-tbl').innerHTML=`<table>
+    <thead><tr><th>Hall</th><th>Capacity</th><th>Seated</th><th>Empty</th><th>Conflicts</th><th>Fill %</th></tr></thead>
+    <tbody>${S.halls.map(h=>{
+      const ha=S.allocations.filter(a=>a.hallId===h.id);
+      const hcf=ha.filter(a=>a.isConflict).length;
+      const pct=(ha.length/h.capacity*100).toFixed(1);
+      return `<tr>
+        <td style="font-weight:600">${esc(h.name)}</td>
+        <td style="font-family:var(--mono)">${h.capacity}</td>
+        <td style="font-family:var(--mono);color:var(--green)">${ha.length}</td>
+        <td style="font-family:var(--mono);color:var(--tx2)">${h.capacity-ha.length}</td>
+        <td><span class="${hcf?'pill pill-cf':'pill pill-ok'}">${hcf?'⚠ '+hcf:'✓ 0'}</span></td>
+        <td><div style="display:flex;align-items:center;gap:6px">
+          <div class="prog-bar" style="width:80px"><div class="prog-fill" style="width:${pct}%;background:var(--blue)"></div></div>
+          <span style="font-size:11px;font-family:var(--mono)">${pct}%</span>
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+function doCSV() {
+  if(!S.allocations.length){toast('No data','⚠️');return;}
+  const hallId=document.getElementById('csv-hall').value;
+  const data=hallId?S.allocations.filter(a=>String(a.hallId)===hallId):S.allocations;
+  const rows=data.map(a=>({StudentID:a.studentId,Name:a.name,Subject:a.subjectCode,Hall:a.hallName,Row:a.row+1,Column:a.col+1,Conflict:a.isConflict?'Yes':'No'}));
+  const csv=Papa.unparse(rows);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='exam_allocations.csv'; a.click();
+  toast('CSV downloaded','📄');
+}
+
+// ═══════════ PDF EXPORT (FIXED & STUDENT-FRIENDLY) ═══════════
+function doPDF() {
+  if(!S.allocations.length){toast('No allocation data','⚠️');return;}
+
+  const btn=document.getElementById('pdf-btn');
+  btn.disabled=true; btn.textContent='⏳ Generating...';
+
+  setTimeout(()=>{
+    try {
+      const { jsPDF } = window.jspdf;
+      if(!jsPDF){ toast('PDF library not loaded. Check internet connection.','❌'); btn.disabled=false; btn.textContent='⬇ Download PDF'; return; }
+
+      const hallId=document.getElementById('pdf-hall').value;
+      let data=hallId?S.allocations.filter(a=>String(a.hallId)===hallId):S.allocations;
+      const incTickets=document.getElementById('pdf-tickets').checked;
+      const incMaster=document.getElementById('pdf-master').checked;
+      const incSummary=document.getElementById('pdf-summary').checked;
+
+      const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+      const PW=210, PH=297;
+      let firstPage=true;
+
+      function newPage(){
+        if(!firstPage) doc.addPage();
+        firstPage=false;
+      }
+
+      // ─── HELPER: draw a rounded rect outline ───
+      function roundRect(x,y,w,h,r,fillColor,strokeColor){
+        if(fillColor){ doc.setFillColor(...fillColor); doc.roundedRect(x,y,w,h,r,r,'F'); }
+        if(strokeColor){ doc.setDrawColor(...strokeColor); doc.roundedRect(x,y,w,h,r,r,'S'); }
+      }
+
+      // ─── PAGE 1: SUMMARY REPORT ───
+      if(incSummary){
+        newPage();
+        // Header band
+        doc.setFillColor(15,23,42);
+        doc.rect(0,0,PW,38,'F');
+        // Accent stripe
+        doc.setFillColor(59,130,246);
+        doc.rect(0,0,PW,4,'F');
+
+        // Logo area
+        doc.setFillColor(59,130,246);
+        doc.roundedRect(14,10,18,18,3,3,'F');
+        doc.setTextColor(255,255,255);
+        doc.setFontSize(14); doc.setFont('helvetica','bold');
+        doc.text('ES',23,22,{align:'center'});
+
+        // Title
+        doc.setTextColor(255,255,255);
+        doc.setFontSize(18); doc.setFont('helvetica','bold');
+        doc.text('Examination Seat Allocation Report',38,18);
+        doc.setFontSize(9); doc.setFont('helvetica','normal');
+        doc.setTextColor(148,163,184);
+        doc.text('Generated: '+new Date().toLocaleString(),38,26);
+        doc.text('ExamSeat Pro — Hall Allocation System',38,32);
+
+        // Summary stats boxes
+        const cf=data.filter(a=>a.isConflict).length;
+        const stats=[
+          {label:'Total Allocated',val:String(data.length),color:[59,130,246]},
+          {label:'Halls Used',val:String(S.halls.length),color:[139,92,246]},
+          {label:'Subjects',val:String(Object.keys(S.subjectMap).length),color:[16,185,129]},
+          {label:'Conflicts',val:String(cf),color:[239,68,68]},
+        ];
+        const bw=40, bh=22, gap=5, startX=14, sy=46;
+        stats.forEach((s,i)=>{
+          const bx=startX+i*(bw+gap);
+          doc.setFillColor(s.color[0],s.color[1],s.color[2],0.1);
+          doc.setFillColor(240,245,255);
+          doc.roundedRect(bx,sy,bw,bh,2,2,'F');
+          doc.setDrawColor(s.color[0],s.color[1],s.color[2]);
+          doc.setLineWidth(0.5);
+          doc.roundedRect(bx,sy,bw,bh,2,2,'S');
+          doc.setLineWidth(0.2);
+          // top accent
+          doc.setFillColor(s.color[0],s.color[1],s.color[2]);
+          doc.rect(bx,sy,bw,1.5,'F');
+          doc.setTextColor(s.color[0],s.color[1],s.color[2]);
+          doc.setFontSize(16); doc.setFont('helvetica','bold');
+          doc.text(s.val,bx+bw/2,sy+13,{align:'center'});
+          doc.setTextColor(80,100,120);
+          doc.setFontSize(7); doc.setFont('helvetica','normal');
+          doc.text(s.label,bx+bw/2,sy+19,{align:'center'});
+        });
+
+        // Hall breakdown table
+        let ty=82;
+        doc.setTextColor(15,23,42);
+        doc.setFontSize(11); doc.setFont('helvetica','bold');
+        doc.text('Hall-wise Breakdown',14,ty); ty+=5;
+
+        // Table header
+        const hcols=[80,22,22,22,22,22];
+        const hhdrs=['Hall Name','Capacity','Seated','Empty','Fill %','Conflicts'];
+        doc.setFillColor(15,23,42);
+        doc.rect(14,ty,PW-28,8,'F');
+        doc.setTextColor(255,255,255);
+        doc.setFontSize(7.5); doc.setFont('helvetica','bold');
+        let hx=14;
+        hhdrs.forEach((h,i)=>{ doc.text(h,hx+2,ty+5.5); hx+=hcols[i]; });
+        ty+=8;
+
+        S.halls.forEach((h,ri)=>{
+          const ha=S.allocations.filter(a=>a.hallId===h.id);
+          const hcf=ha.filter(a=>a.isConflict).length;
+          const pct=(ha.length/h.capacity*100).toFixed(1);
+          doc.setFillColor(ri%2===0?248:255,ri%2===0?250:255,ri%2===0?255:255);
+          doc.rect(14,ty,PW-28,7,'F');
+          doc.setDrawColor(220,225,235); doc.setLineWidth(0.2);
+          doc.line(14,ty+7,PW-14,ty+7);
+          doc.setTextColor(30,41,59);
+          doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+          hx=14;
+          const vals=[h.name,String(h.capacity),String(ha.length),String(h.capacity-ha.length),pct+'%',hcf>0?'⚠ '+hcf:'0'];
+          vals.forEach((v,i)=>{
+            if(i===5&&hcf>0) doc.setTextColor(220,38,38);
+            else doc.setTextColor(30,41,59);
+            doc.text(v,hx+2,ty+5); hx+=hcols[i];
+          });
+          ty+=7;
+        });
+
+        // Subject distribution
+        ty+=8;
+        doc.setTextColor(15,23,42);
+        doc.setFontSize(11); doc.setFont('helvetica','bold');
+        doc.text('Subject Distribution',14,ty); ty+=5;
+
+        const sm={};data.forEach(a=>sm[a.subjectCode]=(sm[a.subjectCode]||0)+1);
+        const sortedSubs=Object.entries(sm).sort((a,b)=>b[1]-a[1]);
+        const PCOLS=[[59,130,246],[245,158,11],[16,185,129],[239,68,68],[139,92,246],[6,182,212],[249,115,22],[236,72,153]];
+        const barW=PW-28, total=data.length;
+        // dist bar
+        let bx2=14;
+        sortedSubs.forEach(([code,cnt],i)=>{
+          const seg=((cnt/total)*barW);
+          const pc=PCOLS[i%PCOLS.length];
+          doc.setFillColor(pc[0],pc[1],pc[2]);
+          doc.rect(bx2,ty,seg,6,'F');
+          bx2+=seg;
+        });
+        ty+=8;
+        // legend
+        sortedSubs.forEach(([code,cnt],i)=>{
+          const pc=PCOLS[i%PCOLS.length];
+          const lx=14+(i%4)*45, ly=ty+Math.floor(i/4)*8;
+          doc.setFillColor(pc[0],pc[1],pc[2]);
+          doc.rect(lx,ly,3,3,'F');
+          doc.setTextColor(30,41,59);
+          doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+          doc.text(`${code} (${cnt})`,lx+5,ly+2.5);
+        });
+        ty+=Math.ceil(sortedSubs.length/4)*8+6;
+
+        // Footer
+        doc.setDrawColor(200,210,225); doc.setLineWidth(0.3);
+        doc.line(14,PH-14,PW-14,PH-14);
+        doc.setTextColor(150,160,175); doc.setFontSize(7); doc.setFont('helvetica','normal');
+        doc.text('ExamSeat Pro — Confidential Examination Document',14,PH-9);
+        doc.text('Page 1',PW-14,PH-9,{align:'right'});
+      }
+
+      // ─── MASTER ALLOCATION TABLE ───
+      if(incMaster){
+        newPage();
+        // Header
+        doc.setFillColor(15,23,42); doc.rect(0,0,PW,28,'F');
+        doc.setFillColor(59,130,246); doc.rect(0,0,PW,3,'F');
+        doc.setTextColor(255,255,255);
+        doc.setFontSize(14); doc.setFont('helvetica','bold');
+        doc.text('Master Seat Allocation Table',PW/2,14,{align:'center'});
+        doc.setFontSize(8); doc.setFont('helvetica','normal');
+        doc.setTextColor(148,163,184);
+        doc.text(`${data.length} students | Generated ${new Date().toLocaleDateString()}`,PW/2,21,{align:'center'});
+
+        // Table config (portrait A4: 210mm wide, margins 12mm each side = 186mm)
+        const cols=[
+          {h:'Student ID', w:30},
+          {h:'Name',       w:50},
+          {h:'Subject',    w:22},
+          {h:'Hall',       w:46},
+          {h:'Row',        w:13},
+          {h:'Col',        w:13},
+          {h:'Status',     w:18},
+        ];
+        const ROW_H=6.5, HDR_H=8, ML=12;
+        let pageNum=2;
+        let ty=34;
+
+        function drawTableHeader(y){
+          doc.setFillColor(30,41,59); doc.rect(ML,y,PW-ML*2,HDR_H,'F');
+          doc.setTextColor(203,213,225); doc.setFontSize(7); doc.setFont('helvetica','bold');
+          let cx=ML;
+          cols.forEach(col=>{ doc.text(col.h,cx+2,y+5.5); cx+=col.w; });
+          return y+HDR_H;
+        }
+
+        ty=drawTableHeader(ty);
+
+        data.forEach((a,ri)=>{
+          if(ty+ROW_H>PH-16){
+            // footer
+            doc.setDrawColor(200,210,225); doc.setLineWidth(0.3);
+            doc.line(ML,PH-12,PW-ML,PH-12);
+            doc.setTextColor(150,160,175); doc.setFontSize(7); doc.setFont('helvetica','normal');
+            doc.text('ExamSeat Pro — Confidential',ML,PH-7);
+            doc.text('Page '+pageNum,PW-ML,PH-7,{align:'right'});
+            doc.addPage();
+            pageNum++;
+            // mini header on continuation
+            doc.setFillColor(15,23,42); doc.rect(0,0,PW,16,'F');
+            doc.setFillColor(59,130,246); doc.rect(0,0,PW,3,'F');
+            doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont('helvetica','bold');
+            doc.text('Master Seat Allocation Table (continued)',PW/2,11,{align:'center'});
+            ty=20;
+            ty=drawTableHeader(ty);
+          }
+          // row bg
+          if(a.isConflict) doc.setFillColor(255,245,245);
+          else doc.setFillColor(ri%2===0?250:255,ri%2===0?251:255,ri%2===0?255:255);
+          doc.rect(ML,ty,PW-ML*2,ROW_H,'F');
+          // bottom border
+          doc.setDrawColor(235,240,248); doc.setLineWidth(0.15);
+          doc.line(ML,ty+ROW_H,PW-ML,ty+ROW_H);
+
+          doc.setFontSize(7); doc.setFont('helvetica','normal');
+          let cx=ML;
+          const vals=[
+            {v:a.studentId, color:a.isConflict?[180,20,20]:[80,100,130]},
+            {v:a.name.substring(0,26), color:[20,30,50]},
+            {v:a.subjectCode, color:[59,130,246]},
+            {v:a.hallName.substring(0,22), color:[60,80,110]},
+            {v:String(a.row+1), color:[20,30,50]},
+            {v:String(a.col+1), color:[20,30,50]},
+            {v:a.isConflict?'CONFLICT':'OK', color:a.isConflict?[200,30,30]:[16,120,80]},
+          ];
+          vals.forEach((vobj,i)=>{
+            doc.setTextColor(vobj.color[0],vobj.color[1],vobj.color[2]);
+            doc.text(String(vobj.v),cx+2,ty+ROW_H-1.5);
+            cx+=cols[i].w;
+          });
+          ty+=ROW_H;
+        });
+        // footer last page
+        doc.setDrawColor(200,210,225); doc.setLineWidth(0.3);
+        doc.line(ML,PH-12,PW-ML,PH-12);
+        doc.setTextColor(150,160,175); doc.setFontSize(7); doc.setFont('helvetica','normal');
+        doc.text('ExamSeat Pro — Confidential',ML,PH-7);
+        doc.text('Page '+pageNum,PW-ML,PH-7,{align:'right'});
+      }
+
+      // ─── INDIVIDUAL HALL TICKETS (4 per page) ───
+      if(incTickets){
+        // 4 tickets per A4 page, 2 columns x 2 rows
+        const TICKET_W=88, TICKET_H=130;
+        const positions=[ [6,12],[112,12],[6,148],[112,148] ];
+        let ticketIdx=0;
+        let pageStarted=false;
+
+        data.forEach((a,i)=>{
+          const pos=ticketIdx%4;
+          if(pos===0){
+            newPage(); pageStarted=true;
+            // Page header band
+            doc.setFillColor(15,23,42); doc.rect(0,0,PW,10,'F');
+            doc.setFillColor(59,130,246); doc.rect(0,0,PW,2,'F');
+            doc.setTextColor(255,255,255); doc.setFontSize(8); doc.setFont('helvetica','bold');
+            doc.text('Student Hall Tickets — ExamSeat Pro',PW/2,7,{align:'center'});
+          }
+
+          const [tx,ty]=positions[pos];
+
+          // Ticket outer border and shadow effect
+          doc.setDrawColor(200,210,230); doc.setLineWidth(0.4);
+          doc.setFillColor(255,255,255);
+          doc.roundedRect(tx,ty,TICKET_W,TICKET_H,3,3,'FD');
+
+          // Colored header band
+          const subColor=COLORS[S.subjectMap[a.subjectCode]%COLORS.length];
+          // parse hex to rgb for jsPDF setFillColor
+          const hexToRgb=hex=>{const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return [r,g,b];};
+          const hclr=hexToRgb(subColor.bd);
+          doc.setFillColor(hclr[0],hclr[1],hclr[2]);
+          doc.roundedRect(tx,ty,TICKET_W,22,3,3,'F');
+          doc.setFillColor(hclr[0],hclr[1],hclr[2]);
+          doc.rect(tx,ty+16,TICKET_W,6,'F'); // flatten bottom of header
+
+          // Institution / system name
+          doc.setTextColor(255,255,255);
+          doc.setFontSize(7); doc.setFont('helvetica','normal');
+          doc.text('EXAMINATION HALL TICKET',tx+TICKET_W/2,ty+7,{align:'center'});
+          doc.setFontSize(9); doc.setFont('helvetica','bold');
+          doc.text('ExamSeat Pro',tx+TICKET_W/2,ty+15,{align:'center'});
+
+          // Ticket number / ID badge top-right
+          doc.setFillColor(255,255,255,0.2);
+          doc.setTextColor(255,255,255);
+          doc.setFontSize(6.5); doc.setFont('helvetica','normal');
+          doc.text('#'+String(i+1).padStart(4,'0'),tx+TICKET_W-4,ty+7,{align:'right'});
+
+          // Divider line
+          doc.setDrawColor(230,235,245); doc.setLineWidth(0.3);
+          doc.line(tx+6,ty+24,tx+TICKET_W-6,ty+24);
+
+          // Student Name (large, prominent)
+          doc.setTextColor(15,23,42);
+          doc.setFontSize(11); doc.setFont('helvetica','bold');
+          const nameStr=a.name.length>20?a.name.substring(0,20)+'..':a.name;
+          doc.text(nameStr,tx+TICKET_W/2,ty+32,{align:'center'});
+
+          // Student ID
+          doc.setFontSize(8); doc.setFont('helvetica','normal');
+          doc.setTextColor(100,120,150);
+          doc.text('Student ID: '+a.studentId,tx+TICKET_W/2,ty+39,{align:'center'});
+
+          // Divider
+          doc.setDrawColor(230,235,245); doc.line(tx+6,ty+43,tx+TICKET_W-6,ty+43);
+
+          // Info rows (label + value pairs)
+          const infoRows=[
+            {label:'Subject Code',value:a.subjectCode},
+            {label:'Examination Hall',value:a.hallName.length>18?a.hallName.substring(0,18)+'..':a.hallName},
+            {label:'Row Number',value:String(a.row+1)},
+            {label:'Column Number',value:String(a.col+1)},
+            {label:'Seat Reference',value:`R${a.row+1} - C${a.col+1}`},
+          ];
+
+          infoRows.forEach((row,ri)=>{
+            const ry=ty+50+ri*15;
+            // Row bg (alternating)
+            doc.setFillColor(ri%2===0?248:255,ri%2===0?250:255,ri%2===0?253:255);
+            doc.rect(tx+4,ry-5,TICKET_W-8,13,'F');
+            // Label
+            doc.setTextColor(120,140,170);
+            doc.setFontSize(6.5); doc.setFont('helvetica','normal');
+            doc.text(row.label,tx+8,ry+2);
+            // Value
+            doc.setTextColor(15,23,42);
+            doc.setFontSize(8); doc.setFont('helvetica','bold');
+            if(ri===0){ // Subject: color it
+              doc.setTextColor(hclr[0],hclr[1],hclr[2]);
+            }
+            doc.text(row.value,tx+TICKET_W-8,ry+2,{align:'right'});
+          });
+
+          // Conflict warning
+          if(a.isConflict){
+            const wy=ty+128;
+            doc.setFillColor(255,235,235);
+            doc.rect(tx+4,wy-5,TICKET_W-8,10,'F');
+            doc.setDrawColor(220,50,50); doc.setLineWidth(0.4);
+            doc.rect(tx+4,wy-5,TICKET_W-8,10,'S');
+            doc.setTextColor(200,30,30);
+            doc.setFontSize(6.5); doc.setFont('helvetica','bold');
+            doc.text('⚠  Seating constraint conflict - verify with invigilator',tx+TICKET_W/2,wy+1,{align:'center'});
+          } else {
+            // Bottom stripe (colored)
+            doc.setFillColor(hclr[0],hclr[1],hclr[2]);
+            doc.rect(tx,ty+TICKET_H-6,TICKET_W,6,'F');
+            doc.roundedRect(tx,ty+TICKET_H-6,TICKET_W,6,3,3,'F');
+            doc.setTextColor(255,255,255);
+            doc.setFontSize(6); doc.setFont('helvetica','normal');
+            doc.text('Valid for current examination session only',tx+TICKET_W/2,ty+TICKET_H-2.5,{align:'center'});
+          }
+
+          ticketIdx++;
+        });
+      }
+
+      doc.save('exam_hall_tickets.pdf');
+      toast('PDF downloaded successfully!','📑');
+    } catch(err) {
+      console.error('PDF error:',err);
+      toast('PDF generation failed: '+err.message,'❌');
+    }
+
+    btn.disabled=false; btn.textContent='⬇ Download PDF';
+  }, 80);
+}
+
+// ═══════════ INIT ═══════════
+(function init(){
+  S.halls=[
+    {id:S.hallSeq++,name:'Block A — Hall 101',rows:10,cols:6,capacity:60},
+    {id:S.hallSeq++,name:'Block B — Hall 201',rows:8,cols:5,capacity:40},
+  ];
+  renderHallsTbl(); updateTopbar(); refreshDash();
+})();
+</script>
+</body>
+</html>
